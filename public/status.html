@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Brightwave Crawler Status — View crawler progress and logs">
+  <title>Status — Brightwave</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <div class="logo-icon">🕷️</div>
+        Brightwave
+      </a>
+      <ul class="navbar-links">
+        <li><a href="/">Crawler</a></li>
+        <li><a href="/search.html">Search</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>Crawler Status</h1>
+      <p id="crawlerIdText">Loading crawler details...</p>
+    </div>
+
+    <!-- Status Alert -->
+    <div id="statusAlert"></div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-value" id="statStatus">—</div>
+        <div class="stat-label">Status</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statPages">0</div>
+        <div class="stat-label">Pages Visited</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statQueue">0</div>
+        <div class="stat-label">Queue Depth</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statElapsed">0s</div>
+        <div class="stat-label">Elapsed Time</div>
+      </div>
+    </div>
+
+    <!-- Crawler Details -->
+    <div class="card" id="detailsCard" style="margin-bottom:1.5rem">
+      <div class="card-title">
+        <span class="icon">⚙️</span>
+        Configuration
+      </div>
+      <div id="configDetails" style="font-size:0.88rem; color:var(--text-secondary)">
+        Loading...
+      </div>
+    </div>
+
+    <!-- Log Viewer -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px">
+          <span class="icon">📜</span>
+          Live Logs
+        </span>
+        <span id="logCount" style="font-size:0.78rem;color:var(--text-muted);font-weight:400"></span>
+      </div>
+      <div class="log-viewer" id="logViewer">
+        <div class="log-line" style="color:#6b7280">Connecting to crawler...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const crawlerId = params.get('id');
+    const crawlerIdText = document.getElementById('crawlerIdText');
+    const statusAlert = document.getElementById('statusAlert');
+    const logViewer = document.getElementById('logViewer');
+    const logCount = document.getElementById('logCount');
+
+    if (!crawlerId) {
+      crawlerIdText.textContent = 'No crawler ID specified';
+      statusAlert.innerHTML = `
+        <div class="alert alert-error">
+          <span>❌</span>
+          <span>No crawler ID provided. <a href="/">Go back to create a crawl job.</a></span>
+        </div>`;
+    } else {
+      crawlerIdText.textContent = `Crawler ID: ${crawlerId}`;
+      pollStatus();
+    }
+
+    let lastLogCount = 0;
+    let pollInterval = null;
+
+    async function pollStatus() {
+      try {
+        const res = await fetch(`/api/crawler/${crawlerId}`);
+        if (!res.ok) {
+          statusAlert.innerHTML = `
+            <div class="alert alert-error">
+              <span>❌</span>
+              <span>Crawler not found. It may not have started yet or the ID is invalid.</span>
+            </div>`;
+          return;
+        }
+
+        const data = await res.json();
+        updateUI(data);
+
+        // Continue polling if still running
+        if (data.status === 'running') {
+          pollInterval = setTimeout(pollStatus, 2000);
+        } else {
+          // One final update
+          if (data.status === 'completed') {
+            statusAlert.innerHTML = `
+              <div class="alert alert-success">
+                <span>✅</span>
+                <span>Crawl completed! ${data.pagesVisited} pages were indexed.
+                  <a href="/search.html">Search the indexed data →</a></span>
+              </div>`;
+          } else if (data.status === 'error') {
+            statusAlert.innerHTML = `
+              <div class="alert alert-error">
+                <span>❌</span>
+                <span>Crawl encountered an error. Check the logs below for details.</span>
+              </div>`;
+          }
+        }
+      } catch (err) {
+        console.error('Poll error:', err);
+        setTimeout(pollStatus, 3000);
+      }
+    }
+
+    function updateUI(data) {
+      // Status
+      const statusEl = document.getElementById('statStatus');
+      statusEl.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      statusEl.style.color = data.status === 'running' ? 'var(--accent-orange)' :
+                              data.status === 'completed' ? 'var(--accent-green)' :
+                              'var(--accent-red)';
+
+      // Stats
+      document.getElementById('statPages').textContent = data.pagesVisited || 0;
+      document.getElementById('statQueue').textContent = data.queueDepth || 0;
+
+      // Elapsed time
+      const elapsed = Math.floor((data.lastUpdated - data.startTime) / 1000);
+      if (elapsed < 60) {
+        document.getElementById('statElapsed').textContent = `${elapsed}s`;
+      } else if (elapsed < 3600) {
+        document.getElementById('statElapsed').textContent = `${Math.floor(elapsed/60)}m ${elapsed%60}s`;
+      } else {
+        document.getElementById('statElapsed').textContent = `${Math.floor(elapsed/3600)}h ${Math.floor((elapsed%3600)/60)}m`;
+      }
+
+      // Configuration
+      document.getElementById('configDetails').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px">
+          <div><strong>Origin:</strong> ${escapeHtml(data.originUrl)}</div>
+          <div><strong>Depth:</strong> ${data.depth}</div>
+          <div><strong>Hit Rate:</strong> ${data.hitRate}ms</div>
+          <div><strong>Pages/Second:</strong> ${data.pagesPerSecond}</div>
+          <div><strong>Queue Capacity:</strong> ${data.queueCapacity}</div>
+          <div><strong>Started:</strong> ${new Date(data.startTime).toLocaleString()}</div>
+        </div>`;
+
+      // Logs
+      if (data.logs && data.logs.length > lastLogCount) {
+        const newLogs = data.logs.slice(lastLogCount);
+        if (lastLogCount === 0) logViewer.innerHTML = '';
+
+        newLogs.forEach(log => {
+          const div = document.createElement('div');
+          div.className = 'log-line';
+          div.innerHTML = formatLog(log);
+          logViewer.appendChild(div);
+        });
+
+        lastLogCount = data.logs.length;
+        logCount.textContent = `${lastLogCount} entries`;
+
+        // Auto-scroll to bottom
+        logViewer.scrollTop = logViewer.scrollHeight;
+      }
+    }
+
+    function formatLog(log) {
+      // Color-code log entries
+      let formatted = escapeHtml(log);
+
+      // Timestamp
+      formatted = formatted.replace(/\[([^\]]+)\]/, '<span class="timestamp">[$1]</span>');
+
+      // URLs
+      formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<span class="url-text">$1</span>');
+
+      // Success keywords
+      formatted = formatted.replace(/(completed|indexed|success)/gi, '<span class="success-text">$1</span>');
+
+      // Error keywords
+      formatted = formatted.replace(/(error|failed|fatal)/gi, '<span class="error-text">$1</span>');
+
+      // Warning keywords
+      formatted = formatted.replace(/(backpressure|pausing|warning)/gi, '<span class="warning-text">$1</span>');
+
+      return formatted;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

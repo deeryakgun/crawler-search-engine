@@ -1,0 +1,13 @@
+{
+  "name": "brightwave-crawler",
+  "version": "1.0.0",
+  "description": "Web crawler with search capabilities for Brightwave",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

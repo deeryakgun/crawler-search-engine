@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Brightwave Search — Search through crawled and indexed web pages">
+  <title>Search — Brightwave</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <div class="logo-icon">🕷️</div>
+        Brightwave
+      </a>
+      <ul class="navbar-links">
+        <li><a href="/">Crawler</a></li>
+        <li><a href="/search.html" class="active">Search</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>Search</h1>
+      <p>Search through indexed web pages. Results are ranked by relevance score.</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="search-form">
+      <input type="text" id="searchInput" placeholder="Enter your search query..." autofocus>
+      <button class="btn btn-primary" id="searchBtn" onclick="performSearch()">
+        🔍 Search
+      </button>
+    </div>
+
+    <!-- Search Controls -->
+    <div class="search-controls">
+      <label for="sortBy">Sort by:</label>
+      <select id="sortBy" onchange="performSearch()">
+        <option value="relevance">Relevance</option>
+        <option value="frequency">Frequency</option>
+      </select>
+      <label for="limitSelect">Results per page:</label>
+      <select id="limitSelect" onchange="performSearch()">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+
+    <!-- Search Stats -->
+    <div class="search-stats" id="searchStats"></div>
+
+    <!-- Results -->
+    <div id="searchResults">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>Enter a query above to search through indexed pages.</p>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    const searchStats = document.getElementById('searchStats');
+    const pagination = document.getElementById('pagination');
+    let currentPage = 1;
+
+    // Search on Enter key
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') performSearch();
+    });
+
+    // Check URL params for initial search
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('query')) {
+      searchInput.value = urlParams.get('query');
+      if (urlParams.get('sortBy')) {
+        document.getElementById('sortBy').value = urlParams.get('sortBy');
+      }
+      performSearch();
+    }
+
+    async function performSearch(page = 1) {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      currentPage = page;
+      const sortBy = document.getElementById('sortBy').value;
+      const limit = document.getElementById('limitSelect').value;
+
+      // Update URL
+      const newUrl = `?query=${encodeURIComponent(query)}&sortBy=${sortBy}`;
+      history.replaceState(null, '', newUrl);
+
+      searchResults.innerHTML = `
+        <div style="text-align:center;padding:2rem">
+          <div class="spinner"></div>
+          <p style="margin-top:1rem;color:var(--text-muted)">Searching...</p>
+        </div>`;
+
+      try {
+        const res = await fetch(
+          `/api/search?query=${encodeURIComponent(query)}&sortBy=${sortBy}&page=${page}&limit=${limit}`
+        );
+        const data = await res.json();
+
+        if (data.error) {
+          searchResults.innerHTML = `
+            <div class="alert alert-error">
+              <span>❌</span>
+              <span>${escapeHtml(data.error)}</span>
+            </div>`;
+          return;
+        }
+
+        displayResults(data);
+      } catch (err) {
+        searchResults.innerHTML = `
+          <div class="alert alert-error">
+            <span>❌</span>
+            <span>Search failed: ${escapeHtml(err.message)}</span>
+          </div>`;
+      }
+    }
+
+    function displayResults(data) {
+      // Stats
+      searchStats.innerHTML = data.total > 0
+        ? `Found <strong>${data.total}</strong> results for "<strong>${escapeHtml(data.query)}</strong>" (page ${data.page} of ${data.totalPages})`
+        : `No results found for "<strong>${escapeHtml(data.query)}</strong>"`;
+
+      if (data.results.length === 0) {
+        searchResults.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">😔</div>
+            <p>No matching results. Try a different query or crawl more pages.</p>
+          </div>`;
+        pagination.innerHTML = '';
+        return;
+      }
+
+      // Results
+      searchResults.innerHTML = data.results.map((r, i) => {
+        const rank = ((data.page - 1) * data.limit) + i + 1;
+        return `
+          <div class="search-result">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="background:var(--bg-tertiary);color:var(--text-muted);padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600">#${rank}</span>
+            </div>
+            <div class="search-result-url">
+              <a href="${escapeHtml(r.url)}" target="_blank">${escapeHtml(r.url)}</a>
+            </div>
+            <div class="search-result-meta">
+              <span>📡 Origin: <strong>${escapeHtml(r.origin_url)}</strong></span>
+              <span>📏 Depth: <strong>${r.depth}</strong></span>
+              <span>🎯 Score: <span class="score-value">${r.relevance_score}</span></span>
+              <span>📊 Frequency: <strong>${r.frequency}</strong></span>
+              ${r.matched_words ? `<span>🔤 Words: ${r.matched_words.join(', ')}</span>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      // Pagination
+      if (data.totalPages > 1) {
+        let buttons = '';
+        buttons += `<button ${data.page <= 1 ? 'disabled' : ''} onclick="performSearch(${data.page - 1})">← Prev</button>`;
+
+        for (let i = 1; i <= data.totalPages && i <= 10; i++) {
+          buttons += `<button class="${i === data.page ? 'active' : ''}" onclick="performSearch(${i})">${i}</button>`;
+        }
+
+        if (data.totalPages > 10) {
+          buttons += `<button disabled>...</button>`;
+          buttons += `<button onclick="performSearch(${data.totalPages})">${data.totalPages}</button>`;
+        }
+
+        buttons += `<button ${data.page >= data.totalPages ? 'disabled' : ''} onclick="performSearch(${data.page + 1})">Next →</button>`;
+        pagination.innerHTML = buttons;
+      } else {
+        pagination.innerHTML = '';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
