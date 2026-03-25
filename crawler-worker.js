@@ -123,7 +123,7 @@ function fetchUrl(pageUrl, redirectCount = 0) {
       path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
       headers: {
-        'User-Agent': 'BrightwaveCrawler/1.0',
+        'User-Agent': 'WebCrawler/1.0',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5'
       },

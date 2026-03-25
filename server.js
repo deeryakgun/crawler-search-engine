@@ -1,5 +1,5 @@
 /**
- * Brightwave Crawler Server
+ * Web Crawler Server
  * Express server exposing crawler, status, and search APIs.
  * Port: 3600
  */
@@ -147,7 +147,7 @@ app.get('/status', (req, res) => {
 // ============ START SERVER ============
 
 app.listen(PORT, () => {
-  console.log(`\n🕷️  Brightwave Crawler Server`);
+  console.log(`\n🕷️  Web Crawler Server`);
   console.log(`   Running on http://localhost:${PORT}`);
   console.log(`   Crawler:  http://localhost:${PORT}/`);
   console.log(`   Search:   http://localhost:${PORT}/search.html`);

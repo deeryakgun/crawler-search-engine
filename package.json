@@ -1,7 +1,7 @@
 {
-  "name": "brightwave-crawler",
+  "name": "crawler-search-engine",
   "version": "1.0.0",
-  "description": "Web crawler with search capabilities for Brightwave",
+  "description": "Web crawler with search capabilities - Search Engine",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

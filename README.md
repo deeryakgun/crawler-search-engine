@@ -1,6 +1,6 @@
-# Brightwave Web Crawler
+# Web Crawler
 
-A web crawler with indexing and search capabilities, built with Node.js. Designed for the Brightwave technical assessment.
+A web crawler with indexing and search capabilities, built with Node.js. Designed for the Web Crawler technical assessment.
 
 ## Features
 

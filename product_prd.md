@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD)
 
-## Project: Brightwave Web Crawler
+## Project: Web Crawler
 
 ### Overview
 
